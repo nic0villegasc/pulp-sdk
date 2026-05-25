@@ -21,10 +21,10 @@
 #define CONFIG_HYPERRAM
 
 #define CONFIG_HYPERFLASH_HYPER_ITF 0
-#define CONFIG_HYPERFLASH_HYPER_CS  0
+#define CONFIG_HYPERFLASH_HYPER_CS  0 // HyperFlash is not accessible due to CS not connected on EVB.
 
 #define CONFIG_HYPERRAM_HYPER_ITF 0
-#define CONFIG_HYPERRAM_HYPER_CS  1
+#define CONFIG_HYPERRAM_HYPER_CS  1 // HyperRAM cs was soldered incorrectly on EVB, so we have to use cs1 instead of cs0
 #define CONFIG_HYPERRAM_START     0
 #define CONFIG_HYPERRAM_SIZE     (8<<20)
 
