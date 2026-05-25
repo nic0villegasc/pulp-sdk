@@ -36,6 +36,7 @@
 #define HYPER_FIFO_DEPTH 8
 #define HYPER_NB_CHANNELS 2 /* 2 tran_id and 1 common space */
 
+// Offsets for the registers of each channel (0x40 instead of total 0x80) and the common registers
 #define HYPER_CHANNEL_OFFSET 0x40
 #define HYPER_CHANNELS_ID_OFFSET(id) HYPER_CHANNEL_OFFSET*(id)
 #define HYPER_COMMON_REGS_OFFSET HYPER_CHANNEL_OFFSET*HYPER_NB_CHANNELS
