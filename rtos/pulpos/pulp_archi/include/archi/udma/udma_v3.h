@@ -149,8 +149,6 @@
 // Return the event id of a channel from the peripheral id
 #define UDMA_EVENT_ID(id)                 ((id)*UDMA_NB_PERIPH_EVENTS)
 
-
-
 #define ARCHI_SOC_EVENT_UDMA_RX(periph)   ((periph)*2)
 #define ARCHI_SOC_EVENT_UDMA_TX(periph)   ((periph)*2 + 1)
 

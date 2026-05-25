@@ -147,8 +147,6 @@
 
 #define ARCHI_NB_PERIPH                   6
 
-
-
 /*
  * FLLS
 */

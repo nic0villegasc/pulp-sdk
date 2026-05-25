@@ -43,8 +43,7 @@
 struct pi_hyperram_conf
 {
     struct pi_ram_conf ram;   /*!< Generic RAM configuration. */
-    int hyper_itf;         /*!< Hyperbus interface where the RAM is
-      connected. */
+    int hyper_itf;         /*!< Hyperbus interface where the RAM is connected. */
     int hyper_cs;          /*!< Chip select where the RAM is connected. */
     char skip_pads_config; /*!< Skip pads configuration if set to 1. */
     int xip_en;            /*!< enable xip mode if set to 1. */

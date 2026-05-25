@@ -8,94 +8,117 @@
  */
 #include "pmsis.h"
 #include <bsp/bsp.h>
+#include "siracusa_padctrl.h"
 
-#define BUFF_SIZE 2048
+#define FC_CLK_FREQ_MHZ     360
+// Start at 10 MHz to guarantee the FIFO fetch beats the 3-cycle CA phase.
+// Once this passes, increment to find the architectural latency ceiling (e.g., 25, 50).
+#define PERIPH_CLK_FREQ_MHZ 100
 
-static char *buff[2];
-static char *rcv_buff[2];
-static uint32_t hyper_buff[2];
-static int count = 0;
-static struct pi_device hyper;
-static struct pi_task fc_tasks[2];
-
-static void end_of_rx(void *arg)
+static void setup_clock_domains()
 {
-  int i = (int)arg;
-  printf("End of RX for id %d\n", (int)arg);
-  count++;
+    // 1. Configure the SOC domain (UDMA engine & L2 Interconnect) for max speed
+    pll_t soc_pll = pll_get_handle(PLL_SOC_DOMAIN);
+    uint32_t actual_soc_freq = pll_set_freq(&soc_pll, FC_CLK_FREQ_MHZ * 1000000, NULL);
+
+    // 3. Configure the PER domain (HyperBus PHY) for maximum CA phase stretching
+    pll_t per_pll = pll_get_handle(PLL_PER_DOMAIN);
+    uint32_t actual_per_freq = pll_set_freq(&per_pll, PERIPH_CLK_FREQ_MHZ * 1000000, NULL);
+
+    printf("[CLOCK] SOC: %u Hz | PER: %u Hz \r\n", 
+           actual_soc_freq, actual_per_freq);
 }
 
-static void end_of_tx(void *arg)
+static int test_entry()
 {
-  printf("End of TX for id %d\n", (int)arg);
-  int i = (int)arg;
-  pi_ram_read_async(&hyper, hyper_buff[i], rcv_buff[i], BUFF_SIZE, pi_task_callback(&fc_tasks[i], end_of_rx, (void *)i));
-}
-
-int test_entry()
-{
-  printf("Entering main controller\n");
-
-  for (int i=0; i<2; i++)
-  {
-    buff[i] = pmsis_l2_malloc(BUFF_SIZE);
-    if (buff[i] == NULL)
-      return -1;
-    rcv_buff[i] = pmsis_l2_malloc(BUFF_SIZE);
-    if (rcv_buff[i] == NULL)
-      return -2;
-  }
-
+  struct pi_device hyper;
   struct pi_hyperram_conf conf;
-  pi_hyperram_conf_init(&conf);
 
+  pi_hyperram_conf_init(&conf);
   pi_open_from_conf(&hyper, &conf);
 
-  if (pi_ram_open(&hyper))
-    return -3;
-
-  if (pi_ram_alloc(&hyper, &hyper_buff[0], BUFF_SIZE))
-    return -4;
-
-  if (pi_ram_alloc(&hyper, &hyper_buff[1], BUFF_SIZE))
-    return -5;
-
-  for (int i=0; i<BUFF_SIZE; i++)
-    {
-      buff[0][i] = i & 0x7f;
-      buff[1][i] = i | 0x80;
-    }
-
-  pi_ram_write_async(&hyper, hyper_buff[0], buff[0], BUFF_SIZE, pi_task_callback(&fc_tasks[0], end_of_tx, (void *)0));
-
-  pi_ram_write_async(&hyper, hyper_buff[1], buff[1], BUFF_SIZE, pi_task_callback(&fc_tasks[1], end_of_tx, (void *)1));
-
-  while(count != 2) {
-    pi_yield();
+  if (pi_ram_open(&hyper)) {
+    //printf("ERROR: Failed to open HyperRAM.\n");
+    return -1;
   }
 
-  for (int j=0; j<2; j++)
-  {
-    for (int i=0; i<BUFF_SIZE; i++)
-    {
-      unsigned char expected;
-      if (j == 0)
-        expected = i & 0x7f;
-      else
-        expected = i | 0x80;
-      if (expected != rcv_buff[j][i])
-      {
-        printf("Error, buffer: %d, index: %d, expected: 0x%x, read: 0x%x\n", j, i, expected, rcv_buff[j][i]);
-        return -6;
+  // Choose an arbitrary address in the HyperRAM memory array
+  uint32_t test_addr = 0x00001000;
+  
+  // --- PADDING HACK CONFIGURATION ---
+  uint32_t latency_clocks = 6;                          // HyperRAM write wait latency
+  uint32_t padding_size = latency_clocks * 2;           // 2 bytes per clock (DDR) = 12 bytes
+  uint32_t data_size = 4;                               // The actual payload size
+  uint32_t tx_transfer_size = padding_size + data_size; // Total UDMA transfer size: 16 bytes
+
+  /* * Allocate the transmit buffer to hold BOTH padding and data.
+   * Receive buffer only needs to hold the actual data.
+   */
+  uint8_t *tx_buffer = (uint8_t *)pmsis_l2_malloc(tx_transfer_size);
+  uint8_t *rx_buffer = (uint8_t *)pmsis_l2_malloc(data_size);
+  
+  if (tx_buffer == NULL || rx_buffer == NULL) {
+    //printf("ERROR: Failed to allocate L2 memory.\n");
+    if (tx_buffer) pmsis_l2_malloc_free(tx_buffer, tx_transfer_size);
+    if (rx_buffer) pmsis_l2_malloc_free(rx_buffer, data_size);
+    pi_ram_close(&hyper);
+    return -1;
+  }
+
+  // 1. Initialize the first 12 bytes with padding (garbage data)
+  // The PHY will send this while the RAM is in its latency wait state.
+  for (uint32_t i = 0; i < padding_size; i++) {
+      tx_buffer[i] = 0x00; 
+  }
+
+  // 2. Append the actual test pattern at the end of the TX buffer
+  // The RAM will start capturing exactly when this data hits the bus.
+  tx_buffer[padding_size + 0] = 0xDE;
+  tx_buffer[padding_size + 1] = 0xAD;
+  tx_buffer[padding_size + 2] = 0xBE;
+  tx_buffer[padding_size + 3] = 0xEF;
+  
+  // Clear RX buffer
+  rx_buffer[0] = 0x00;
+  rx_buffer[1] = 0x00;
+  rx_buffer[2] = 0x00;
+  rx_buffer[3] = 0x00;
+
+  printf("Starting Memory Write (12 bytes padding + 4 bytes data)...\n");
+  // Execute the write using the expanded size
+  pi_ram_write(&hyper, test_addr, tx_buffer, tx_transfer_size);
+
+  printf("Starting Memory Read (4 bytes data)...\n");
+  // The read side uses the Flash Read state, which likely handles read latency correctly.
+  pi_ram_read(&hyper, test_addr, rx_buffer, data_size);
+
+  // DEBUG: Print the raw bytes to verify
+  printf("RAW BYTES WRITTEN: 0x%02X 0x%02X 0x%02X 0x%02X\n", 
+         tx_buffer[padding_size + 0], tx_buffer[padding_size + 1], 
+         tx_buffer[padding_size + 2], tx_buffer[padding_size + 3]);
+  printf("RAW BYTES READ:    0x%02X 0x%02X 0x%02X 0x%02X\n", 
+         rx_buffer[0], rx_buffer[1], rx_buffer[2], rx_buffer[3]);
+
+  // Verify the data by offsetting the tx_buffer index
+  int error_count = 0;
+  for (uint32_t i = 0; i < data_size; i++) {
+      if (tx_buffer[padding_size + i] != rx_buffer[i]) {
+          error_count++;
       }
-    }
   }
 
-  pi_ram_free(&hyper, hyper_buff[0], BUFF_SIZE);
-  pi_ram_free(&hyper, hyper_buff[1], BUFF_SIZE);
+  if (error_count == 0) { 
+      printf(">>> SUCCESS: Memory Read/Write Test Passed! <<<\n");
+  } else {
+      printf(">>> FAILED: Memory mismatch detected. Errors: %d <<<\n", error_count);
+  }
+
+  // Clean up
+  pmsis_l2_malloc_free(tx_buffer, tx_transfer_size);
+  pmsis_l2_malloc_free(rx_buffer, data_size);
   pi_ram_close(&hyper);
 
-  return 0;
+  return (error_count == 0) ? 0 : -1;
 }
 
 void test_kickoff(void *arg)
@@ -106,5 +129,14 @@ void test_kickoff(void *arg)
 
 int main()
 {
+#ifdef RTL_PLATFORM
+  padctrl_mode_set(PAD_GPIO39, PAD_MODE_UART0_RX);
+  padctrl_mode_set(PAD_GPIO38, PAD_MODE_UART0_TX);
+#endif
+
+  setup_clock_domains();
+
+  printf("Starting HyperRAM Test\r\n");
+
   return pmsis_kickoff((void *)test_kickoff);
 }

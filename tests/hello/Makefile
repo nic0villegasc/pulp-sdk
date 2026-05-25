@@ -10,6 +10,9 @@ APP_CFLAGS += -DNUM_CORES=1
 endif
 endif
 
+APP_CFLAGS += -DRTOS_PMSIS -I$(HOME)/PULP/pulp-dsp/include # Pulp math
+APP_LDFLAGS += -lplpdsp -lm
+
 ifeq '$(platform)' 'rtl'
 APP_CFLAGS    += -DRTL_PLATFORM=1
 endif

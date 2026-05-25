@@ -280,7 +280,7 @@ void pi_hyper_read_async(struct pi_device *device, uint32_t hyper_addr, void *ad
   pos_hyper_t *hyper = (pos_hyper_t *)device->data;
 
   unsigned int twd_cmd[HYPER_NB_TWD_REGS] = {0,0,0,0,0,0};
-  unsigned int ctl_cmd[HYPER_NB_CTL_REGS] = {0x5, hyper_addr};
+  unsigned int ctl_cmd[HYPER_NB_CTL_REGS] = {0x4, hyper_addr};
 
   pos_hyper_setup(hyper);
 
@@ -356,7 +356,7 @@ void pi_hyper_write_async(struct pi_device *device, uint32_t hyper_addr, void *a
   pos_hyper_t *hyper = (pos_hyper_t *)device->data;
 
   unsigned int twd_cmd[HYPER_NB_TWD_REGS] = {0,0,0,0,0,0};
-  unsigned int ctl_cmd[HYPER_NB_CTL_REGS] = {0x1, hyper_addr};
+  unsigned int ctl_cmd[HYPER_NB_CTL_REGS] = {0x0, hyper_addr};
 
   pos_hyper_setup(hyper);
 

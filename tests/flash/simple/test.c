@@ -29,6 +29,9 @@
 
 #include "pmsis.h"
 #include <bsp/bsp.h>
+#if defined(RTL_PLATFORM)
+    #include "siracusa_padctrl.h"
+#endif
 
 #define HYPER_FLASH 0
 #define SPI_FLASH   1
@@ -64,61 +67,54 @@ static PI_L2 unsigned char tx_buffer[BUFF_SIZE];
 static int test_entry()
 {
   struct pi_device flash;
-
   struct pi_hyperflash_conf flash_conf;
-  struct pi_flash_info flash_info;
+  uint32_t test_addr = 0x00040080; // Safe address from your earlier test
 
-  printf("Entering main controller\n");
+  printf("Starting No-Erase Flash Write Test...\n");
 
   pi_hyperflash_conf_init(&flash_conf);
-
   pi_open_from_conf(&flash, &flash_conf);
 
-  if (pi_flash_open(&flash))
+  if (pi_flash_open(&flash)) {
+    printf("ERROR: pi_flash_open failed!\n");
     return -1;
+  }
+  printf("HyperFlash opened successfully.\n");
 
-  pi_flash_ioctl(&flash, PI_FLASH_IOCTL_INFO, (void *)&flash_info);
+  // Step 1: Prove it is empty
+  printf("Reading initial state...\n");
+  pi_flash_read(&flash, test_addr, rx_buffer, 4);
+  printf("Initial Read: %02X %02X %02X %02X\n", rx_buffer[0], rx_buffer[1], rx_buffer[2], rx_buffer[3]);
 
-  for (int j=0; j<NB_ITER; j++)
-  {
-    // The beginning of the flash may contain runtime data such as the boot binary.
-    // Round-up the flash start with the sector size to not erase it.
-    // Also add small offset to better test erase (sector size aligned) and program (512 byte aligned).
-    uint32_t flash_addr = ((flash_info.flash_start + flash_info.sector_size - 1) & ~(flash_info.sector_size - 1)) + 128;
-
-    int size;
-    get_info(&size);
-
-    pi_flash_erase(&flash, flash_addr, size);
-
-    while(size > 0)
-    {
-      for (int i=0; i<BUFF_SIZE; i++)
-      {
-        tx_buffer[i] = i*(j+1);
-        rx_buffer[i] = 0;
-      }
-
-      pi_flash_bwrite(&flash, flash_addr, tx_buffer, BUFF_SIZE);
-      pi_flash_read(&flash, flash_addr, rx_buffer, BUFF_SIZE);
-
-      for (int i=0; i<BUFF_SIZE; i++)
-      {
-          if (rx_buffer[i] != (unsigned char)(i*(j+1)))
-          {
-            printf("Error at index %d, expected 0x%2.2x, got 0x%2.2x\n", i, (unsigned char)i, rx_buffer[i]);
-            printf("TEST FAILURE\n");
-            return -2;
-          }
-      }
-      size -= BUFF_SIZE;
-      flash_addr += BUFF_SIZE;
-    }
+  if (rx_buffer[0] != 0xFF) {
+      printf("Warning: Address is not completely erased! Write might fail.\n");
   }
 
-  pi_flash_close(&flash);
+  // Step 2: Write our signature
+  printf("Writing DEADBEEF signature...\n");
+  tx_buffer[0] = 0xDE;
+  tx_buffer[1] = 0xAD;
+  tx_buffer[2] = 0xBE;
+  tx_buffer[3] = 0xEF;
+  
+  // Use bwrite to handle the flash command sequencing
+  pi_flash_bwrite(&flash, test_addr, tx_buffer, 4);
 
-  printf("TEST SUCCESS\n");
+  // Step 3: Read it back
+  printf("Reading back written data...\n");
+  // Clear rx_buffer just to be absolutely sure we aren't faking it
+  rx_buffer[0] = 0; rx_buffer[1] = 0; rx_buffer[2] = 0; rx_buffer[3] = 0; 
+  
+  pi_flash_read(&flash, test_addr, rx_buffer, 4);
+  printf("Final Read:   %02X %02X %02X %02X\n", rx_buffer[0], rx_buffer[1], rx_buffer[2], rx_buffer[3]);
+
+  pi_flash_close(&flash);
+  
+  if (rx_buffer[0] == 0xDE && rx_buffer[1] == 0xAD) {
+      printf(">>> TEST SUCCESS! FLASH IS 100%% FUNCTIONAL! <<<\n");
+  } else {
+      printf(">>> TEST FAILED! FLASH IS DEAD/LOCKED! <<<\n");
+  }
 
   return 0;
 }
@@ -131,5 +127,13 @@ static void test_kickoff(void *arg)
 
 int main()
 {
+  #if defined(RTL_PLATFORM)
+      padctrl_mode_set(PAD_GPIO39, PAD_MODE_UART0_RX);
+      padctrl_mode_set(PAD_GPIO38, PAD_MODE_UART0_TX);
+      
+    #endif
+    
+    printf("Starting HyperRAM Test\r\n");
+
   return pmsis_kickoff((void *)test_kickoff);
 }

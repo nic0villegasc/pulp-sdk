@@ -50,8 +50,7 @@ typedef struct __pi_ram_api_t pi_ram_api_t;
  * configuration.
  */
 struct pi_ram_conf {
-    pi_ram_api_t *api;   /*!< Pointer to specific RAM methods. Reserved for 
-    internal runtime usage. */
+    pi_ram_api_t *api;   /*!< Pointer to specific RAM methods. Reserved for internal runtime usage. */
 };
 
 typedef enum {
@@ -772,6 +771,13 @@ static inline void pi_ram_copy_bi2d_async(struct pi_device *device, uint32_t pi_
 }
 
 static inline void pi_ram_read(struct pi_device *device, uint32_t pi_ram_addr, void *data, uint32_t size)
+{
+    pi_task_t task;
+    pi_ram_read_async(device, pi_ram_addr, data, size, pi_task_block(&task));
+    pi_task_wait_on(&task);
+}
+
+static inline void pi_ram_register_read(struct pi_device *device, uint32_t pi_ram_addr, void *data, uint32_t size)
 {
     pi_task_t task;
     pi_ram_read_async(device, pi_ram_addr, data, size, pi_task_block(&task));

@@ -29,6 +29,8 @@
 
 #include "pmsis.h"
 #include <bsp/bsp.h>
+#include "siracusa_padctrl.h"
+
 
 #define HYPER_FLASH 0
 #define SPI_FLASH   1
@@ -171,5 +173,12 @@ static void test_kickoff(void *arg)
 
 int main()
 {
+#ifdef RTL_PLATFORM
+  padctrl_mode_set(PAD_GPIO39, PAD_MODE_UART0_RX);
+  padctrl_mode_set(PAD_GPIO38, PAD_MODE_UART0_TX);
+#endif
+
+  printf("Starting HyperRAM Test\r\n");
+
   return pmsis_kickoff((void *)test_kickoff);
 }
