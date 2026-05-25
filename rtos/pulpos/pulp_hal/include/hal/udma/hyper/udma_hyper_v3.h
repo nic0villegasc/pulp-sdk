@@ -22,7 +22,7 @@
 #define __HAL_UDMA_HYPER_V3_H__
 
 #include "pmsis.h"
-#include "archi/udma/hyper/udma_hyper_v3.h"
+#include "archi/udma/hyper/udma_hyper_v3_siracusa_fix.h"
 #include <stdio.h>
 
 /* Transaction configuration parameters */
