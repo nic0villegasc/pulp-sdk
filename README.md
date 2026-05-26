@@ -12,7 +12,7 @@ To help developers navigate the SDK and avoid breaking internal build paths, her
 * **`rtos/`** - Source code for the Real-Time Operating Systems (e.g., PULP-OS) supported by the chips.
 * **`rules/`** - Internal Makefile definitions and compilation rules. External applications rely on these rules to compile RISC-V binaries correctly.
 * **`tools/`** - Internal build utilities, hardware configuration generators, and simulator (GVSoC) components.
-* **`ext/` & `ext_libs/**` - External dependencies, mathematical libraries, and pre-compiled static archives.
+* **`ext/` & `ext_libs/`** - External dependencies, mathematical libraries, and pre-compiled static archives.
 * **`tests/`** - SDK validation tests to verify the toolchain builds and simulates correctly.
 * **`build/` & `install/` *(Git-Ignored)*** - Auto-generated directories. `build/` contains intermediate object files, and `install/` contains the final compiled simulator binaries and SDK headers.
 
