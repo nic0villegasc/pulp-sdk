@@ -42,7 +42,7 @@
 #include "archi/udma/hyper/udma_hyper_v2.h"
 #endif
 #if HYPER_VERSION == 3
-#include "archi/udma/hyper/udma_hyper_v3.h"
+#include "archi/udma/hyper/udma_hyper_v3_siracusa_fix.h"
 #endif
 #endif
 

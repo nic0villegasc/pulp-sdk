@@ -20,7 +20,7 @@
 
 
 #include "../udma_impl.hpp"
-#include "archi/udma/hyper/udma_hyper_v3.h"
+#include "archi/udma/hyper/udma_hyper_v3_siracusa_fix.h"
 #include "archi/utils.h"
 #include "vp/itf/hyper.hpp"
 
