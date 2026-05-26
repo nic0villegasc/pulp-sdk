@@ -1,4 +1,4 @@
-# PULP-SDK (CHIP-Uandes)
+# PULP-SDK (CHIP-Uandes Laboratory)
 
 This repository contains the core Software Development Kit (SDK) and build environment for compiling, simulating, and deploying applications on PULP (Parallel Ultra Low Power) RISC-V architectures.
 
